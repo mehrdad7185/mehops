@@ -327,12 +327,7 @@ services:
     networks:
       - elk_net
       - web_net
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-      kibana:
-        condition: service_healthy
-
+    
   apm-server:
     image: elastic/apm-server:${ELK_VERSION}
     container_name: apm-server
