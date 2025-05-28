@@ -1,0 +1,98 @@
+services:
+  # This service now primarily acts as a reverse proxy for the static site
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Mounts the Nginx config file you created (e.g., school.conf)
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      # Mounts the static website content into the container
+      - /var/www/html/school:/var/www/html/school:ro
+      # Mount for SSL certificates
+      - ./nginx/certs:/etc/nginx/certs
+    networks:
+      - wp_net
+    logging: # Added for Loki integration
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+
+  # The WordPress and DB services are defined but not directly used by the provided Nginx config.
+  # They can be used for another site on a different server_name.
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: always
+    depends_on:
+      - db
+    environment:
+      WORDPRESS_DB_HOST: 'db:3306'
+      WORDPRESS_DB_USER: 'mehops'
+      WORDPRESS_DB_PASSWORD: 'mehops'
+      WORDPRESS_DB_NAME: 'mehops'
+    volumes:
+      - wp_wp:/var/www/html/
+    networks:
+      - wp_net
+    logging: # Added for Loki integration
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+
+  # Database Service
+  db:
+    image: mysql:5.7
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 'mehops'
+      MYSQL_DATABASE: 'mehops'
+      MYSQL_USER: 'mehops'
+      MYSQL_PASSWORD: 'mehops'
+    volumes:
+      - wp_db:/var/lib/mysql
+    networks:
+      - wp_net
+    logging: # Added for Loki integration
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+
+  # --- Monitoring Exporters for Prometheus ---
+  mysqld_exporter:
+    image: bitnami/elasticsearch-exporter:latest # Using the reliable Bitnami image
+    container_name: mysql-exporter
+    restart: always
+    environment:
+      DATA_SOURCE_NAME: "mehops:mehops@(db:3306)/mehops"
+    networks:
+      - wp_net
+    depends_on:
+      - db
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    restart: always
+    command: -nginx.scrape-uri http://nginx/stub_status
+    networks:
+      - wp_net
+    depends_on:
+      - nginx # Corrected dependency
+
+# Volumes for persistent data storage
+volumes:
+  wp_db:
+    name: wp_db
+  wp_wp:
+    name: wp_wp
+
+# Custom network for internal communication between services
+networks:
+  wp_net:
+    name: wp_net
+    driver: bridge
