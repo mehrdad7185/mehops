@@ -58,12 +58,12 @@ Vagrant.configure(2) do |config|
     worker_vm.vm.box = IMAGE_DEBIAN_12
     worker_vm.vm.hostname = "worker3"
     worker_vm.vm.network "private_network", ip: "192.168.56.13"
+    worker_vm.vm.network "forwarded_port", guest: 3100, host: 3100 # For Loki API
     worker_vm.vm.provider "virtualbox" do |v|
       v.name = "worker3"
       v.memory = 1024
       v.cpus = 1
     end
-    # All machines use the same bootstrap script
     worker_vm.vm.provision "shell", path: "bootstrap.sh"
   end
 end
