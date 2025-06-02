@@ -67,12 +67,13 @@ services:
     image: prom/mysqld-exporter:latest
     container_name: mysql-exporter
     restart: always
-    environment:
-      DATA_SOURCE_NAME: "mehops:mehops@(db:3306)/mehops"
     command:
-      - '--config.my-cnf=""' # Instructs exporter to not look for a .my.cnf file
+      - '--config.my-cnf=/etc/mysql_exporter_config/exporter.cnf'
+
     ports:
       - "9104:9104" # Exposes exporter's metrics endpoint on worker1
+    volumes:
+      - ./mysql_exporter_config/exporter.cnf:/etc/mysql_exporter_config/exporter.cnf:ro  
     networks:
       - wp_net
     depends_on:
