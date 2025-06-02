@@ -1,5 +1,5 @@
 services:
-  # This service now primarily acts as a reverse proxy for the static site
+  # Nginx service: Acts as a reverse proxy and serves the static 'school' site
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -8,21 +8,18 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # Mounts the Nginx config file you created (e.g., school.conf)
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      # Mounts the static website content into the container
-      - /var/www/html/school:/var/www/html/school:ro
-      # Mount for SSL certificates
-      - ./nginx/certs:/etc/nginx/certs
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro # Mounts custom Nginx configuration files (read-only)
+      - /var/www/html/school:/var/www/html/school:ro # Mounts static site content (read-only)
+      - ./nginx/certs:/etc/nginx/certs:ro # Mounts SSL certificates (read-only)
     networks:
       - wp_net
-    logging: # Added for Loki integration
+    logging:
       driver: loki
       options:
         loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_nginx"
 
-  # The WordPress and DB services are defined but not directly used by the provided Nginx config.
-  # They can be used for another site on a different server_name.
+  # WordPress application service
   wordpress:
     image: wordpress:latest
     container_name: wordpress
@@ -35,15 +32,16 @@ services:
       WORDPRESS_DB_PASSWORD: 'mehops'
       WORDPRESS_DB_NAME: 'mehops'
     volumes:
-      - wp_wp:/var/www/html/
+      - wp_wp:/var/www/html/ # WordPress core files, themes, plugins, uploads (persistent)
     networks:
       - wp_net
-    logging: # Added for Loki integration
+    logging:
       driver: loki
       options:
         loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_wordpress"
 
-  # Database Service
+  # Database service (MySQL) for WordPress
   db:
     image: mysql:5.7
     container_name: mysql
@@ -54,44 +52,63 @@ services:
       MYSQL_USER: 'mehops'
       MYSQL_PASSWORD: 'mehops'
     volumes:
-      - wp_db:/var/lib/mysql
+      - wp_db:/var/lib/mysql # MySQL database data (persistent)
     networks:
       - wp_net
-    logging: # Added for Loki integration
+    logging:
       driver: loki
       options:
         loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_db"
 
   # --- Monitoring Exporters for Prometheus ---
+  # MySQL Exporter to gather metrics from the 'db' service
   mysqld_exporter:
-    image: bitnami/elasticsearch-exporter:latest # Using the reliable Bitnami image
+    image: prom/mysqld-exporter:latest
     container_name: mysql-exporter
     restart: always
     environment:
       DATA_SOURCE_NAME: "mehops:mehops@(db:3306)/mehops"
+    command:
+      - '--config.my-cnf=""' # Instructs exporter to not look for a .my.cnf file
+    ports:
+      - "9104:9104" # Exposes exporter's metrics endpoint on worker1
     networks:
       - wp_net
     depends_on:
       - db
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_mysqld_exporter"
 
+  # Nginx Exporter to gather metrics from the 'nginx' service
   nginx_exporter:
     image: nginx/nginx-prometheus-exporter:latest
     container_name: nginx-exporter
     restart: always
-    command: -nginx.scrape-uri http://nginx/stub_status
+    command: -nginx.scrape-uri http://nginx/stub_status # Scrapes Nginx /stub_status endpoint
+    ports:
+      - "9113:9113" # Exposes exporter's metrics endpoint on worker1
     networks:
       - wp_net
     depends_on:
-      - nginx # Corrected dependency
+      - nginx
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_nginx_exporter"
 
-# Volumes for persistent data storage
+# Named volumes for persistent data storage
 volumes:
-  wp_db:
+  wp_db: # For MySQL database data
     name: wp_db
-  wp_wp:
+  wp_wp: # For WordPress content (themes, plugins, uploads)
     name: wp_wp
 
-# Custom network for internal communication between services
+# Custom bridge network for internal communication between services in this stack
 networks:
   wp_net:
     name: wp_net
