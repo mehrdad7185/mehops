@@ -1,0 +1,40 @@
+networks:
+  loki_stack_net:
+    name: loki_stack_net # Defines a custom bridge network for this stack
+    driver: bridge      # Ensures services can communicate using their service names
+
+volumes:
+  loki_data:
+    name: loki_data      # Defines a named volume for Loki's persistent storage
+
+services:
+  # Loki: The log aggregation server
+  loki:
+    image: grafana/loki:2.9.5
+    command: -config.file=/etc/loki/loki.yml # Points to the configuration file inside the container
+    restart: unless-stopped
+    container_name: loki
+    user: root # Runs as root; ensure volume permissions are considered if changing
+    volumes:
+      - loki_data:/loki              # Mounts the named volume for persistent log storage (indexes and chunks)
+      - ./loki:/etc/loki/            # Mounts the host's ./loki directory (containing loki.yml) to /etc/loki/ inside the container
+    ports:
+      - "3100:3100"                  # Exposes Loki's HTTP API port (for ingestion, querying by Grafana, and its own /metrics)
+    networks:
+      - loki_stack_net             # Connects Loki to the custom network
+
+  # Promtail: The log shipping agent
+  promtail:
+    image: grafana/promtail:2.9.5
+    restart: unless-stopped
+    container_name: promtail
+    volumes:
+      - /var/log:/var/log:ro         # Mounts host's /var/log (read-only) for system log collection
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # Mounts host's Docker container logs (read-only)
+      - /var/run/docker.sock:/var/run/docker.sock:ro           # Mounts Docker socket (read-only) for container metadata
+      - ./promtail:/etc/promtail/    # Mounts the host's ./promtail directory (containing promtail.yml) to /etc/promtail/ inside the container
+    command: -config.file=/etc/promtail/promtail.yml # Points to the configuration file inside the container
+    ports:
+      - "9080:9080"                  # Exposes Promtail's HTTP port, primarily for its own /metrics endpoint for Prometheus
+    networks:
+      - loki_stack_net             # Connects Promtail to the custom network, allowing it to reach Loki via 'http://loki:3100'
