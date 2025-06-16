@@ -1,0 +1,89 @@
+volumes:
+  es_data: # Persistent data for Elasticsearch
+    name: es_data
+  kibana_data: # Persistent data for Kibana
+    name: kibana_data
+
+networks:
+  elk_net: # Simplified internal network for the ELK stack
+    name: elk_net
+    driver: bridge
+
+services:
+  elasticsearch:
+    # This is the CORRECT image for Elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION:-8.13.4}
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-mehops}
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - elk_net
+
+  logstash:
+    # This is the CORRECT image for Logstash
+    image: docker.elastic.co/logstash/logstash:${ELK_VERSION:-8.13.4}
+    container_name: logstash
+    restart: unless-stopped
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline/:ro
+      - ./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    ports:
+      - "5044:5044"
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: "-Xms1500m -Xmx1500m"
+      ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200'
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-mehops}
+    networks:
+      - elk_net
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    # This is the CORRECT image for Kibana
+    image: docker.elastic.co/kibana/kibana:${ELK_VERSION:-8.13.4}
+    container_name: kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-mehops}
+    ports:
+      - "5601:5601"
+    networks:
+      - elk_net
+    depends_on:
+      - elasticsearch
+
+  elasticsearch_exporter:
+    image: bitnami/elasticsearch-exporter:latest # Using the reliable Bitnami image
+    container_name: elasticsearch-exporter
+    restart: unless-stopped
+    environment:
+      # Bitnami image uses environment variables for configuration
+      - ELASTICSEARCH_URI=http://elasticsearch:9200
+    networks:
+      - elk_net
+    depends_on:
+      - elasticsearch
