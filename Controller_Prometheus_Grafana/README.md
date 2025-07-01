@@ -1,2 +1,4 @@
 monitoring stack format
-![image](https://github.com/user-attachments/assets/7eb3e995-d309-45cd-86b3-60390b22e0ef)
+
+
+![image](https://github.com/user-attachments/assets/7e1fb2dc-5665-4723-a68e-fa3492c4fc1c)
