@@ -1,0 +1,55 @@
+global:
+  scrape_interval: 15s # Default scrape interval
+
+scrape_configs:
+  - job_name: 'prometheus_self' # Monitors Prometheus itself
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'controller_node_exporter'
+    static_configs:
+      - targets: ['node-exporter:9100'] # node-exporter service on controller
+
+  - job_name: 'controller_cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080'] # cAdvisor service on controller
+
+  # Targets from worker1 (WordPress Stack)
+  - job_name: 'worker1_nginx'
+    static_configs:
+      - targets: ['192.168.56.11:9113'] # Nginx exporter on worker1
+
+  - job_name: 'worker1_mysql'
+    static_configs:
+      - targets: ['192.168.56.11:9104'] # MySQL exporter on worker1
+  
+  # Targets from worker2 (ELK Stack - add when worker2 is up)
+  # - job_name: 'worker2_elasticsearch'
+  #   static_configs:
+  #     - targets: ['192.168.56.12:9114'] # Elasticsearch exporter on worker2
+
+  # Targets from worker3 (Loki Stack)
+  - job_name: 'worker3_loki'
+    static_configs:
+      - targets: ['192.168.56.13:3100'] # Loki's /metrics endpoint
+
+  - job_name: 'worker3_promtail'
+    static_configs:
+      - targets: ['192.168.56.13:9080'] # Promtail's /metrics endpoint (if exposed & desired)
+
+  # Optional: Blackbox exporter example
+  # - job_name: 'blackbox_http_example'
+  #   metrics_path: /probe
+  #   params:
+  #     module: [http_2xx] # Must be defined in blackbox.yml
+  #   static_configs:
+  #     - targets:
+  #       - https://google.com # Example external target
+  #       - http://mehops.nginx.com # Example internal target (resolve via host or internal DNS)
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: __param_target
+  #     - source_labels: [__param_target]
+  #       target_label: instance
+  #     - target_label: __address__
+  #       replacement: blackbox-exporter:9115 # blackbox-exporter service name

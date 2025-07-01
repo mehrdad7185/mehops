@@ -1,0 +1,14 @@
+# Grafana datasource provisioning
+apiVersion: 1
+
+datasources:
+  - name: Prometheus_Controller # Name displayed in Grafana
+    type: prometheus
+    access: proxy # Access through Grafana backend
+    url: http://prometheus:9090 # 'prometheus' is the Docker service name
+    isDefault: true
+
+  - name: Loki_Worker3 # Name for Loki datasource
+    type: loki
+    access: proxy
+    url: http://192.168.56.13:3100 # IP of worker3 and Loki port

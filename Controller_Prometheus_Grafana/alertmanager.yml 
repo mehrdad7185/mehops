@@ -1,0 +1,9 @@
+# Minimal Alertmanager configuration
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'null_receiver' # Default receiver that does nothing
+
+receivers:
+  - name: 'null_receiver'
