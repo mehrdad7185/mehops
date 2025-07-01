@@ -1,7 +1,7 @@
 version: '3.8'
 
 networks:
-  monitoring_net: # Monitoring stack network
+  monitoring_net: # Simplified network for this stack
     name: monitoring_net
     driver: bridge
 
@@ -18,26 +18,26 @@ volumes:
 services:
   prometheus:
     image: prom/prometheus:v2.47.1
-    restart: unless-stopped
-    container_name: prometheus
+    restart: unless-stopped # Default restart policy
+    container_name: prometheus # Corrected container name
     volumes:
       - prometheus_data:/prometheus
-      - ./prometheus:/etc/prometheus # Mount local Prometheus config
+      - ./prometheus:/etc/prometheus # Mount local prometheus config
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=30d
-      - --storage.tsdb.retention.size=150GB # Adjust retention size for disk
+      - --storage.tsdb.retention.size=150GB # Consider adjusting based on controller's disk
       - --web.enable-lifecycle
       - --web.listen-address=:9090
     ports:
-      - "9090:9090" # Expose Prometheus
+      - "9090:9090" # Expose Prometheus on host port 9090
     networks:
       - monitoring_net
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki instance on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Send logs to Loki on worker3
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
   grafana:
@@ -46,22 +46,22 @@ services:
     container_name: grafana
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/:/etc/grafana/provisioning/ # Mount local Grafana provisioning
+      - ./grafana/provisioning/:/etc/grafana/provisioning/ # Mount local grafana provisioning
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin} # Admin user (default: admin)
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin} # Admin pass (default: admin)
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin} # Default admin user if not set
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin} # Default admin password if not set
       - GF_INSTALL_PLUGINS=${GRAFANA_INSTALL_PLUGINS}
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_PATHS_DATA=/var/lib/grafana
       - GF_SERVER_HTTP_PORT=3000
     ports:
-      - "3000:3000" # Expose Grafana
+      - "3000:3000" # Expose Grafana on host port 3000
     networks:
       - monitoring_net
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
   alertmanager:
@@ -70,7 +70,7 @@ services:
     container_name: alertmanager
     volumes:
       - alertmanager_data:/alertmanager
-      - ./alertmanager:/etc/alertmanager # Mount local Alertmanager config
+      - ./alertmanager:/etc/alertmanager # Mount local alertmanager config
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
@@ -82,7 +82,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
   pushgateway:
@@ -90,11 +90,11 @@ services:
     restart: unless-stopped
     container_name: pushgateway
     command:
-      - --persistence.file=/data/pushgateway.store # Persistence file in /data volume
+      - --persistence.file=/data/pushgateway.store # Changed path to be inside volume
       - --persistence.interval=1m
       - --web.listen-address=:9091
     volumes:
-      - pushgateway_data:/data # Mount volume for persistence
+      - pushgateway_data:/data # Mount volume to /data
     ports:
       - "9091:9091" # Expose Pushgateway
     networks:
@@ -102,19 +102,19 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
-  # --- Controller Node Exporters ---
+  # --- Exporters running on the Controller node ---
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.2 # Official cAdvisor image
+    image: gcr.io/cadvisor/cadvisor:v0.47.2 # Using official gcr.io image
     command:
-      - --port=8080 # cAdvisor internal port
-      # - --disable_metrics=disk,udp,percpu # Example: disable specific metrics
+      - --port=8080 # Default port
+      # Add other flags as needed, e.g. --disable_metrics=disk,udp,percpu
     restart: unless-stopped
     container_name: cadvisor
-    # ports: # Not exposed; Prometheus scrapes internally via monitoring_net
-    #   - "8081:8080"
+    # ports: # Not exposing by default, Prometheus scrapes it internally
+    #  - "8081:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
@@ -125,7 +125,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
   blackbox-exporter:
@@ -133,20 +133,20 @@ services:
     restart: unless-stopped
     container_name: blackbox-exporter
     command:
-      - '--config.file=/etc/blackboxexporter/blackbox.yml' # Config file path
+      - '--config.file=/etc/blackboxexporter/blackbox.yml' # Corrected path
     volumes:
-      - ./blackbox:/etc/blackboxexporter # Mount local Blackbox config
-    # ports: # Not exposed; Prometheus scrapes internally
-    #   - "9115:9115"
+      - ./blackbox:/etc/blackboxexporter # Mount local blackbox config
+    # ports: # Not exposing by default
+    #  - "9115:9115"
     networks:
       - monitoring_net
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
 
-  node-exporter: # Monitors the controller node
+  node-exporter: # This monitors the controller node itself
     image: prom/node-exporter:v1.6.1
     restart: unless-stopped
     container_name: node-exporter
@@ -159,12 +159,12 @@ services:
       - '--path.sysfs=/host/sys'
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
-    # ports: # Not exposed; Prometheus scrapes internally
-    #   - "9100:9100"
+    # ports: # Not exposing by default
+    #  - "9100:9100"
     networks:
       - monitoring_net
     logging:
       driver: loki
       options:
-        loki-url: "http://192.168.56.13:3100/loki/api/v1/push" # Loki on worker3
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=monitoring_stack"
