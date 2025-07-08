@@ -1,17 +1,18 @@
+# Final Docker Compose for ELK Stack v8.x on worker2
+
 volumes:
-  es_data: # Persistent data for Elasticsearch
+  es_data:
     name: es_data
-  kibana_data: # Persistent data for Kibana
+  kibana_data:
     name: kibana_data
 
 networks:
-  elk_net: # Simplified internal network for the ELK stack
+  elk_net:
     name: elk_net
     driver: bridge
 
 services:
   elasticsearch:
-    # This is the CORRECT image for Elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELK_VERSION:-8.13.4}
     container_name: elasticsearch
     restart: unless-stopped
@@ -19,7 +20,7 @@ services:
       - node.name=es01
       - cluster.name=es-docker-cluster
       - discovery.type=single-node
-      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-mehops}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-mehops} # This sets the password for the 'elastic' superuser
       - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
       - bootstrap.memory_lock=true
       - xpack.security.enabled=true
@@ -38,7 +39,6 @@ services:
       - elk_net
 
   logstash:
-    # This is the CORRECT image for Logstash
     image: docker.elastic.co/logstash/logstash:${ELK_VERSION:-8.13.4}
     container_name: logstash
     restart: unless-stopped
@@ -53,36 +53,40 @@ services:
     environment:
       LS_JAVA_OPTS: "-Xms1500m -Xmx1500m"
       ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200'
+      # Logstash uses the 'elastic' superuser which has the required permissions
       ELASTICSEARCH_USERNAME: elastic
       ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-mehops}
     networks:
       - elk_net
     depends_on:
-      - elasticsearch
+      - elasticsearch # Logstash will wait for ES to start, but not necessarily be healthy
 
   kibana:
-    # This is the CORRECT image for Kibana
     image: docker.elastic.co/kibana/kibana:${ELK_VERSION:-8.13.4}
     container_name: kibana
     restart: unless-stopped
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      # Kibana must use its dedicated system user
       - ELASTICSEARCH_USERNAME=kibana_system
-      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-mehops}
+      # We will set this password manually in Elasticsearch itself
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD:-mehops}
     ports:
       - "5601:5601"
     networks:
       - elk_net
     depends_on:
-      - elasticsearch
+      - elasticsearch # Kibana will wait for ES to start
 
   elasticsearch_exporter:
-    image: bitnami/elasticsearch-exporter:latest # Using the reliable Bitnami image
+    image: bitnami/elasticsearch-exporter:latest
     container_name: elasticsearch-exporter
     restart: unless-stopped
     environment:
-      # Bitnami image uses environment variables for configuration
-      - ELASTICSEARCH_URI=http://elasticsearch:9200
+      # We need to provide credentials in the URI for the exporter to connect
+      - ELASTICSEARCH_URI=http://elastic:${ELASTICSEARCH_PASSWORD:-mehops}@elasticsearch:9200
+    ports:
+      - "9114:9114"
     networks:
       - elk_net
     depends_on:
