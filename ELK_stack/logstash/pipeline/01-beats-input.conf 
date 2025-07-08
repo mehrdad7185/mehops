@@ -1,0 +1,20 @@
+# /opt/ELK/logstash/pipeline/01-beats-input.conf
+
+input {
+  beats {
+    port => 5044
+  }
+}
+
+# The filter part is optional. We will skip it for now for simplicity.
+# filter {
+# }
+
+output {
+  elasticsearch {
+    hosts => ["http://elasticsearch:9200"] # 'elasticsearch' is the service name from docker-compose
+    user => "elastic"
+    password => "${ELASTICSEARCH_PASSWORD}" # This uses the variable from the .env file
+    index => "filebeat-%{+YYYY.MM.dd}" # Creates daily indices in Elasticsearch
+  }
+}
