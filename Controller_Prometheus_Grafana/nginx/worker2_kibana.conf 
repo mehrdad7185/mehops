@@ -1,0 +1,11 @@
+# Proxies requests for Kibana to worker2
+server {
+    listen 80;
+    server_name kibana.mehops.com; 
+
+    location / {
+        proxy_pass http://192.168.56.12:5601; 
+        proxy_set_header Host $host;
+        
+    }
+}
