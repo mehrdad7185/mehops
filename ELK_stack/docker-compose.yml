@@ -1,4 +1,4 @@
-# Final Docker Compose for ELK Stack v8.x on worker2
+# Docker Compose for ELK Stack v8.x on worker2
 
 volumes:
   es_data:
