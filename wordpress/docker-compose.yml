@@ -102,6 +102,32 @@ services:
         loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
         loki-external-labels: "container_name={{.Name}},job=worker1_nginx_exporter"
 
+  # Node Exporter to gather metrics from the 'node' service
+
+  node_exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node-exporter
+    restart: always
+    ports:
+      - "9100:9100" # Exposes metrics endpoint on worker1
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+    networks:
+      - wp_net
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://192.168.56.13:3100/loki/api/v1/push"
+        loki-external-labels: "container_name={{.Name}},job=worker1_node_exporter,instance_name=worker1"
+
+
 # Named volumes for persistent data storage
 volumes:
   wp_db: # For MySQL database data
