@@ -24,9 +24,9 @@ scrape_configs:
       - targets: ['192.168.56.11:9104'] # MySQL exporter on worker1
   
   # Targets from worker2 (ELK Stack - add when worker2 is up)
-  # - job_name: 'worker2_elasticsearch'
-  #   static_configs:
-  #     - targets: ['192.168.56.12:9114'] # Elasticsearch exporter on worker2
+  - job_name: 'worker2_elasticsearch'
+    static_configs:
+      - targets: ['192.168.56.12:9114'] # Elasticsearch exporter on worker2
 
   # Targets from worker3 (Loki Stack)
   - job_name: 'worker3_loki'
